@@ -11,6 +11,7 @@ option(DEF_LIBTABCRYPT "Build libtabcrypt" ON)
 option(DEF_CLIENT "Build TabloClient" ON)
 option(DEF_MASTER "Build TabloMaster" ON)
 option(DEF_NODE "Build TabloNode" ON)
+option(DEF_TESTS "Build the Tablo test suite" OFF)
 
 # Shared libraries
 
@@ -30,4 +31,9 @@ endif()
 
 if(DEF_NODE)
     add_subdirectory(TabloNode)
+endif()
+
+if(DEF_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
 endif()

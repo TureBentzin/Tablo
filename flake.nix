@@ -74,6 +74,7 @@
               enableNode ? false,
               enableClient ? false,
               enableMaster ? false,
+              enableTests ? false,
 
               extraInputs ? [ ],
             }:
@@ -95,13 +96,20 @@
                   -DDEF_LIBTABCRYPT=${if enableLibtabcrypt then "ON" else "OFF"} \
                   -DDEF_NODE=${if enableNode then "ON" else "OFF"} \
                   -DDEF_CLIENT=${if enableClient then "ON" else "OFF"} \
-                  -DDEF_MASTER=${if enableMaster then "ON" else "OFF"}
+                  -DDEF_MASTER=${if enableMaster then "ON" else "OFF"} \
+                  -DDEF_TESTS=${if enableTests then "ON" else "OFF"}
               '';
 
               buildPhase = ''
                 cmake --build build \
                   --target ${buildTarget} \
                   -j$NIX_BUILD_CORES
+              '';
+
+              doCheck = enableTests;
+
+              checkPhase = ''
+                ctest --test-dir build --output-on-failure
               '';
 
               installPhase = ''
@@ -169,6 +177,48 @@
             ];
           };
 
+          tablo-tests = mkTabloPackage {
+            pname = "tablo-tests";
+
+            enableLibtabcrypt = true;
+            enableTests = true;
+          };
+
+          tablo-test-runner-ux = pkgs.runCommand "tablo-test-runner-ux" {
+            nativeBuildInputs = [ tablo-tests ];
+          } ''
+            set -o pipefail
+            mkdir -p $out
+
+            tablo-tests --list | tee $out/available-tests.txt
+            grep -q "csv manager executes TQL" $out/available-tests.txt
+            grep -q "worker executes a TQL request" $out/available-tests.txt
+
+            tablo-tests "csv manager" | tee $out/filtered-run.txt
+            grep -q "tests passed" $out/filtered-run.txt
+          '';
+
+          # CI builds the application only after the test derivation and its
+          # installed runner interface have both completed successfully.
+          tablo-full-after-tests = tablo-full.overrideAttrs (previous: {
+            nativeBuildInputs = (previous.nativeBuildInputs or [ ]) ++ [ tablo-test-runner-ux ];
+          });
+
+          tablo-ci = pkgs.linkFarm "tablo-ci-${version}" [
+            {
+              name = "build";
+              path = tablo-full-after-tests;
+            }
+            {
+              name = "tests";
+              path = tablo-tests;
+            }
+            {
+              name = "test-runner-ux";
+              path = tablo-test-runner-ux;
+            }
+          ];
+
           tablo = pkgs.symlinkJoin {
             name = "tablo-${version}";
 
@@ -198,12 +248,19 @@
             tablo-client
             tablo-master
             tablo-full
+            tablo-tests
+            tablo-test-runner-ux
+            tablo-full-after-tests
+            tablo-ci
             libtabcrypt
             libtablog
             libttp2
             libtql
             libtud
             ;
+
+          tests = tablo-tests;
+          ci = tablo-ci;
 
           default = tablo;
 
@@ -213,6 +270,12 @@
 
           tablo-client-docker = mkTabloDocker tablo-client "tablo-client";
         };
+
+      checks.${system} = {
+        tests = self.packages.${system}.tablo-tests;
+        build = self.packages.${system}.tablo-full-after-tests;
+        test-runner-ux = self.packages.${system}.tablo-test-runner-ux;
+      };
 
       devShells.${system}.default =
         let

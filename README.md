@@ -1,5 +1,36 @@
 # Tablo
 
+## Test with Nix
+
+Run the complete deterministic test suite during a Nix build:
+
+```sh
+nix build -L .#tests
+```
+
+Run the tests, verify the test-runner UX, and build every Tablo component with
+one command:
+
+```sh
+nix build -L .#ci
+```
+
+The CI build is gated: the complete test suite and test-runner validation must
+finish successfully before the full application build starts. `nix flake check
+-L` uses the same checks and dependency ordering.
+
+The test executable is also convenient for local iteration while retaining the
+same pinned Nix dependencies:
+
+```sh
+nix run .#tests
+nix run .#tests -- --list
+nix run .#tests -- "csv manager"
+```
+
+The tests do not need network access and do not depend on host interfaces,
+ports, timing services, or files outside the Nix build sandbox.
+
 ## Deploy with NIX
 
 ### 1 Allow following ports in your firewall

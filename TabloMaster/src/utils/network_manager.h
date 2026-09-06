@@ -27,7 +27,6 @@ class NetworkManager
         std::shared_ptr<tud::ServerDiscovery> udpDiscovery;
         std::thread serverDiscoveryThread;
 
-        std::vector<ttp2::Networking::Viewport> insertionSortViewportsByX(std::vector<ttp2::Networking::Viewport> viewports);
 };
 
 #endif

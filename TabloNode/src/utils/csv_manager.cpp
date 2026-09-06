@@ -13,6 +13,8 @@
 #include <tablog.h>
 
 #include <iostream>
+#include <algorithm>
+#include <numeric>
 #include <string>
 
 void CsvManager::setFile(ttp2::ServerSessionController::File newFile) {
@@ -37,24 +39,21 @@ std::shared_ptr<arrow::ChunkedArray> CsvManager::getColumnByIndex(int index) {
 }
 
 std::shared_ptr<arrow::Table> CsvManager::getViewport(int xStart, int xEnd, int yStart, int yEnd) {  
-  int columnCount = this->file.payload->num_columns()-1;
-  if (yEnd > columnCount)
-    yEnd = columnCount;
+  const int lastColumn = this->file.payload->num_columns() - 1;
+  xStart = std::max(xStart, this->file.start);
+  xEnd = std::min(xEnd, this->file.end);
+  yStart = std::max(yStart, 0);
+  yEnd = std::min(yEnd, lastColumn);
 
-  if (yStart < 0)
-    yStart = 0;
+  if (xStart > xEnd || yStart > yEnd) {
+    return arrow::Table::Make(arrow::schema({}), std::vector<std::shared_ptr<arrow::Array>>{}, 0);
+  }
 
   logger->log(tablog::DEBUG, "yStart " + std::to_string(yStart) + " yEnd " + std::to_string(yEnd));
 
-  int rowStartIndex = this->file.start;
-  xStart = xStart - rowStartIndex;
-  if (xStart < 0)
-    xStart = 0;
-  
-  xEnd = xEnd - rowStartIndex;
-  if (xEnd > this->file.end)
-    xEnd = this->file.end;
-  logger->log(tablog::DEBUG, "xStart " + std::to_string(xStart) + " xEnd " + std::to_string(xEnd));
+  const int localRowStart = xStart - this->file.start;
+  const int rowCount = xEnd - xStart + 1;
+  logger->log(tablog::DEBUG, "xStart " + std::to_string(localRowStart) + " rowCount " + std::to_string(rowCount));
   
   // Slice columns
   std::vector<int> selectColumnIndices(yEnd - yStart + 1);
@@ -62,7 +61,7 @@ std::shared_ptr<arrow::Table> CsvManager::getViewport(int xStart, int xEnd, int 
   std::shared_ptr<arrow::Table> columnSliceTable = *this->file.payload->SelectColumns(selectColumnIndices);
 
   // Slice rows
-  std::shared_ptr<arrow::Table> slicedRowTable = columnSliceTable->Slice(xStart, xEnd);
+  std::shared_ptr<arrow::Table> slicedRowTable = columnSliceTable->Slice(localRowStart, rowCount);
 
   // logger->log(tablog::DEBUG, "Viewport content:\n" + slicedRowTable->ToString());
   

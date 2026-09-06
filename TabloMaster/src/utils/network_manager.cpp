@@ -1,4 +1,5 @@
 #include "network_manager.h"
+#include "viewport_utils.h"
 #include <tablog.h>
 
 #include <arrow/array/builder_base.h>
@@ -318,7 +319,7 @@ void NetworkManager::handleClientConnection(int serverSocket, int clientSocket) 
                     if (viewportReqests[viewportRequestIndex].id == viewportIterator->first) {
                         if (std::holds_alternative<ttp2::ServerSessionController::Standard>(viewportReqests[viewportRequestIndex].payload)) {
                             ttp2::ServerSessionController::ViewportRequest viewportRequest = std::get<ttp2::ServerSessionController::ViewportRequest>(viewportReqests[viewportRequestIndex].payload);
-                            std::vector<ttp2::Networking::Viewport> sortedViewports = insertionSortViewportsByX(viewportIterator->second);
+                            std::vector<ttp2::Networking::Viewport> sortedViewports = tablo::master::sortViewportsByX(viewportIterator->second);
                             int xEnd = sortedViewports.back().xEnd;
                         
                             if (viewportRequest.xStart == sortedViewports.begin()->xStart && viewportRequest.xEnd == xEnd) {
@@ -367,18 +368,4 @@ void NetworkManager::handleClientConnection(int serverSocket, int clientSocket) 
     
     networkingSession.join();
     logger->log(tablog::INFO, "Terminated");
-}
-
-std::vector<ttp2::Networking::Viewport> NetworkManager::insertionSortViewportsByX(std::vector<ttp2::Networking::Viewport> viewports) {
-    for (int index = 1; index < viewports.size()-1; index++) {
-        ttp2::Networking::Viewport viewport = viewports[index];
-        int pointerIndex = index - 1;
-
-        while (pointerIndex >= 0 && viewports[pointerIndex].xStart > viewport.xStart) {
-            viewports[pointerIndex + 1] = viewports[pointerIndex];
-            pointerIndex--;
-        }
-        viewports[pointerIndex + 1] = viewport;
-    }
-    return viewports;
 }
