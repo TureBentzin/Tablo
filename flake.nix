@@ -56,18 +56,63 @@
               tag = version;
               config = {
                 Cmd = [ "${tablo-full}/bin/${name}" ];
-              } // extraConfig;
+              }
+              // extraConfig;
             };
         in
         {
           inherit tablo-full;
           default = tablo-full;
-          tablo-node-docker = mkTabloDocker "tablo-node" {};
-          tablo-master-docker = mkTabloDocker "tablo-master" {};
+
+          # Name the NixOS module and the overlay expect.
+          tablo = tablo-full;
+
+          tablo-node-docker = mkTabloDocker "tablo-node" { };
+          tablo-master-docker = mkTabloDocker "tablo-master" { };
 
           # used for client containers not deployed via swarm
-          tablo-client-docker = mkTabloDocker "tablo-client" {};
+          tablo-client-docker = mkTabloDocker "tablo-client" { };
         };
+
+      # NixOS deployment surface -------------------------------------------------
+
+      overlays.default = _final: _prev: {
+        # TODO: tablo-full is x86_64-linux only right now; key this off
+        # final.stdenv.hostPlatform.system once it builds for more systems.
+        tablo = self.packages.${system}.tablo-full;
+      };
+
+      nixosModules = {
+        # Options and systemd units only — bring your own
+        # `services.tablo.package`.
+        tablo = import ./nix/modules;
+
+        # Makes `pkgs.tablo` resolve to this flake's build.
+        overlay = {
+          nixpkgs.overlays = [ self.overlays.default ];
+        };
+
+        default = {
+          imports = [
+            self.nixosModules.tablo
+            self.nixosModules.overlay
+          ];
+        };
+      };
+
+      # Helpers for describing a whole cluster at once; see nix/lib/cluster.nix.
+      lib = import ./nix/lib/cluster.nix {
+        inherit nixpkgs;
+        lib = nixpkgs.lib;
+        tabloModule = self.nixosModules.default;
+      };
+
+      checks.${system} = {
+        cluster = import ./nix/tests/cluster.nix {
+          inherit pkgs;
+          tabloModule = self.nixosModules.default;
+        };
+      };
 
       devShells.${system}.default = pkgs.mkShell {
         inherit packages;
