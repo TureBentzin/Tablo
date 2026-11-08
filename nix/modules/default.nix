@@ -7,6 +7,7 @@
 {
   imports = [
     ./common.nix
+    ./local-access.nix
     ./node.nix
     ./master.nix
   ];

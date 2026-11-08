@@ -109,8 +109,14 @@
 
       checks.${system} = {
         cluster = import ./nix/tests/cluster.nix {
-          inherit pkgs;
-          tabloModule = self.nixosModules.default;
+          # The overlay has to come in through `pkgs` rather than through
+          # `nixosModules.default`: runNixOSTest pins each node's `nixpkgs.pkgs`
+          # read-only, so a node may not set `nixpkgs.overlays` itself.
+          pkgs = import nixpkgs {
+            inherit system;
+            overlays = [ self.overlays.default ];
+          };
+          tabloModule = self.nixosModules.tablo;
         };
       };
 
